@@ -1,0 +1,67 @@
+buildscript {
+
+    ext.jetpack = "1.2.0-alpha05"
+
+    ext.accompanist = "0.23.1"
+
+    ext.composeUi = "androidx.compose.ui:ui:$jetpack"
+    // Tooling support (Previews, etc.)
+    ext.composeUiTooling = "androidx.compose.ui:ui-tooling:$jetpack"
+    // Foundation (Border, Background, Box, Image, Scroll, shapes, animations, etc.)
+    ext.composeFoundation = "androidx.compose.foundation:foundation:$jetpack"
+    // Material Design
+    ext.composeMaterial = "androidx.compose.material:material:$jetpack"
+    ext.materialYou = "androidx.compose.material3:material3:1.0.0-alpha07"
+    // Material design icons
+    ext.composeMaterialIconsCore = "androidx.compose.material:material-icons-core:$jetpack"
+    ext.composeMaterialIconsExtended = "androidx.compose.material:material-icons-extended:$jetpack"
+    // Integration with activities
+    ext.composeActivity = 'androidx.activity:activity-compose:1.4.0'
+    // Integration with ViewModels
+    ext.composeLifecycle = 'androidx.lifecycle:lifecycle-viewmodel-compose:2.4.1'
+    // Integration with observables
+    ext.composeRuntimeLivedata = "androidx.compose.runtime:runtime-livedata:$jetpack"
+    ext.composeRuntimeRxjava2 = "androidx.compose.runtime:runtime-rxjava2:$jetpack"
+    ext.composeMaterialThemeAdapter = "com.google.android.material:compose-theme-adapter:1.1.5"
+    ext.composeMaterial3ThemeAdapter = "com.google.android.material:compose-theme-adapter-3:1.0.5"
+    ext.composeConstraintLayout = "androidx.constraintlayout:constraintlayout-compose:1.0.0"
+    ext.composeAnimation = "androidx.compose.animation:animation:$jetpack"
+    ext.materialPlaceholder = "com.google.accompanist:accompanist-placeholder-material:$accompanist"
+    ext.drawablePainter = "com.google.accompanist:accompanist-drawablepainter:$accompanist"
+    ext.permissions = "com.google.accompanist:accompanist-permissions:$accompanist"
+    ext.uiUtil = "androidx.compose.ui:ui-util:$jetpack"
+
+    ext {
+        room_version = "2.4.2"
+
+        room = [
+                room: [
+                        "androidx.room:room-runtime:$room_version",
+                        "androidx.room:room-ktx:$room_version",
+                        "androidx.room:room-rxjava2:$room_version"
+                ]
+        ]
+
+        compose = [
+                compose: [
+                        composeUi, composeUiTooling, composeFoundation, composeMaterial,
+                        composeMaterialIconsCore, composeMaterialIconsExtended,
+                        composeActivity, composeLifecycle,
+                        composeRuntimeLivedata, composeRuntimeRxjava2,
+                        composeMaterialThemeAdapter, composeMaterial3ThemeAdapter,
+                        composeConstraintLayout, permissions,
+                        materialPlaceholder, drawablePainter, uiUtil,
+                        materialYou,
+                ]
+        ]
+    }
+}// Top-level build file where you can add configuration options common to all sub-projects/modules.
+plugins {
+    id 'com.android.application' version '7.1.2' apply false
+    id 'com.android.library' version '7.1.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.6.10' apply false
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
