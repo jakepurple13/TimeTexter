@@ -32,6 +32,9 @@ import androidx.constraintlayout.compose.Dimension
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionsRequired
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 
 @ExperimentalMaterial3Api
 @ExperimentalComposeUiApi
@@ -204,6 +207,28 @@ fun PermissionRequest(permissionsList: List<String>, content: @Composable () -> 
     )
 }
 
+@ExperimentalPermissionsApi
+@Composable
+fun PermissionRequest(permissionsList: List<String>, denied: @Composable () -> Unit, content: @Composable () -> Unit) {
+    val storagePermissions = rememberMultiplePermissionsState(permissionsList)
+    val context = LocalContext.current
+    PermissionsRequired(
+        multiplePermissionsState = storagePermissions,
+        permissionsNotGrantedContent = denied,
+        permissionsNotAvailableContent = {
+            NeedsPermissions {
+                context.startActivity(
+                    Intent().apply {
+                        action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                )
+            }
+        },
+        content = content
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NeedsPermissions(onClick: () -> Unit) {
@@ -238,4 +263,23 @@ fun NeedsPermissions(onClick: () -> Unit) {
             }
         }
     }
+}
+
+/**
+ * converts [this] to a Json string
+ */
+fun Any?.toJson(): String = Gson().toJson(this)
+
+/**
+ * converts [this] to a Json string but its formatted nicely
+ */
+fun Any?.toPrettyJson(): String = GsonBuilder().setPrettyPrinting().create().toJson(this)
+
+/**
+ * Takes [this] and coverts it to an object
+ */
+inline fun <reified T> String?.fromJson(): T? = try {
+    Gson().fromJson(this, object : TypeToken<T>() {}.type)
+} catch (e: Exception) {
+    null
 }

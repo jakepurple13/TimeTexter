@@ -1,5 +1,6 @@
 package com.programmersbox.timetexter
 
+import android.Manifest
 import android.R.attr.data
 import android.database.Cursor
 import android.icu.text.SimpleDateFormat
@@ -12,16 +13,15 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,6 +37,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.database.getStringOrNull
@@ -50,6 +51,7 @@ import com.google.android.material.composethemeadapter.MdcTheme
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -58,7 +60,9 @@ data class ContactInfo(
     val numbers: List<String>
 )
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.material.ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.material.ExperimentalMaterialApi::class,
+    com.google.accompanist.permissions.ExperimentalPermissionsApi::class
+)
 @Composable
 fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavController) {
 
@@ -72,9 +76,17 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
     var textMessage by remember { mutableStateOf("") }
     var type by remember { mutableStateOf(TimeType.DAILY) }
 
+    val is24Hour = remember { DateFormat.is24HourFormat(context) }
+
+    var timeHours by remember {
+        mutableStateOf(if(is24Hour) FullHours(12, 0) else AMPMHours(12, 0, AMPMHours.DayTime.PM))
+    }
+    var weekDay: Int? by remember { mutableStateOf(null) }
+    val datePickerState = rememberDatePickerState(initialDate = LocalDate.now())
+
     val numberList = remember { mutableStateListOf<Pair<String, String>>() }
 
-    var potentialNumbers by remember { mutableStateOf<ContactInfo>(ContactInfo("", emptyList())) }
+    var potentialNumbers by remember { mutableStateOf(ContactInfo("", emptyList())) }
     var chooseNumber by remember { mutableStateOf(false) }
 
     val contactIntent = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
@@ -203,24 +215,26 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
                         .weight(1f),
                     onClick = {
                         if (id.isNotEmpty()) {
-                            scope.launch {
-                                dao.newItem(
-                                    TextInfo(
-                                        id = id,
-                                        text = textMessage,
-                                        type = type,
-                                        time = 0L,
-                                        true,
-                                        numberList.fastMap { it.second }.toList()
-                                    )
-                                )
-                            }
 
-                            /*workManager.enqueueUniquePeriodicWork(
-                                item.id,
-                                ExistingPeriodicWorkPolicy.KEEP,
-                                PeriodicWorkRequestBuilder()
-                            )*/
+                            val newItem = TextInfo(
+                                id = id,
+                                text = textMessage,
+                                type = type,
+                                time = 0L,
+                                timeInfo = TextTime(
+                                    type = type,
+                                    date = datePickerState.initialDate,
+                                    time = "${timeHours.hours}:${timeHours.minutes}",
+                                    amPm = if(is24Hour) null else (timeHours as? AMPMHours)?.dayTime?.name,
+                                    weekDay = weekDay
+                                ),
+                                true,
+                                numberList.fastMap { it.second }.toList()
+                            )
+
+                            scope.launch { dao.newItem(newItem) }
+
+                            queueItem(context, newItem)
 
                             navController.popBackStack()
                         } else {
@@ -291,15 +305,21 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
 
             Divider()
 
-            PreferenceSetting(
-                settingTitle = { Text("Contacts to Text") },
-                summaryValue = {
-                    Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" })
-                },
-                modifier = Modifier.clickable {
-                    contactIntent.launch()
+            PermissionRequest(
+                permissionsList = listOf(Manifest.permission.READ_CONTACTS),
+                denied = {
+                    PreferenceSetting(
+                        settingTitle = { Text("Contacts to Text") },
+                        summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) }
+                    )
                 }
-            )
+            ) {
+                PreferenceSetting(
+                    settingTitle = { Text("Contacts to Text") },
+                    summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) },
+                    modifier = Modifier.clickable { contactIntent.launch() }
+                )
+            }
 
             var customNumber by remember { mutableStateOf("") }
 
@@ -352,58 +372,83 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
                 }
             )
 
-            var timeLong by remember { mutableStateOf(0L) }
-
             when (type) {
-                TimeType.DAILY -> {
+                TimeType.WEEKLY -> {
 
                     PreferenceSetting(
-                        settingTitle = { Text("Set the Daily Time") },
-                        summaryValue = {
-                            Text("At $timeLong")
-                        },
-                        modifier = Modifier.clickable {
-                            val c = Calendar.getInstance()
-                            val timePicker = MaterialTimePicker.Builder()
-                                .setTitleText(R.string.selectTime)
-                                .setPositiveButtonText("OK")
-                                .setTimeFormat(
-                                    if (DateFormat.is24HourFormat(context)) TimeFormat.CLOCK_24H else TimeFormat.CLOCK_12H
-                                )
-                                .setHour(c[Calendar.HOUR_OF_DAY])
-                                .setMinute(c[Calendar.MINUTE])
-                                .build()
-
-                            timePicker.addOnPositiveButtonClickListener { _ ->
-                                c.add(Calendar.DAY_OF_YEAR, 1)
-                                c[Calendar.HOUR_OF_DAY] = timePicker.hour
-                                c[Calendar.MINUTE] = timePicker.minute
-
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(
-                                            R.string.willNotifyAt,
-                                            SimpleDateFormat.getDateTimeInstance().format(c.timeInMillis)
-                                        ),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-
-                            //timePicker.show(fragmentManager, "timePicker")
-                        }
+                        settingTitle = { Text("Selected") },
+                        summaryValue = { Text("$weekDay") }
                     )
-                }
-                TimeType.WEEKLY -> {
+
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+
+                        @Composable
+                        fun Day(text: String, index: Int) {
+                            IconButton(
+                                onClick = { weekDay = if (weekDay == index) null else index },
+                                modifier = Modifier
+                                    .background(
+                                        animateColorAsState(
+                                            if (weekDay == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                                        ).value,
+                                        CircleShape
+                                    )
+                            ) {
+                                Text(
+                                    text,
+                                    fontSize = 24.sp,
+                                )
+                            }
+                        }
+
+                        Day("S", 1)
+                        Day("M", 2)
+                        Day("T", 3)
+                        Day("W", 4)
+                        Day("T", 5)
+                        Day("F", 6)
+                        Day("S", 7)
+
+                    }
 
                 }
                 TimeType.MONTHLY -> {
+                    PreferenceSetting(
+                        settingTitle = { Text("Selected") },
+                        summaryValue = { Text("${datePickerState.initialDate}") }
+                    )
 
+                    DatePickerTimeline(
+                        state = datePickerState,
+                        onDateSelected = {}
+                    )
                 }
                 TimeType.YEARLY -> {
+                    PreferenceSetting(
+                        settingTitle = { Text("Selected") },
+                        summaryValue = { Text("${datePickerState.initialDate}") }
+                    )
 
+                    DatePickerTimeline(
+                        state = datePickerState,
+                        onDateSelected = {}
+                    )
                 }
+            }
+
+            if(is24Hour) {
+                HoursNumberPicker(
+                    value = timeHours,
+                    onValueChange = { timeHours = it }
+                )
+            } else {
+                HoursNumberPicker(
+                    value = timeHours,
+                    onValueChange = { timeHours = it }
+                )
             }
 
             Divider()

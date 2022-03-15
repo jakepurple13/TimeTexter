@@ -1,16 +1,17 @@
 package com.programmersbox.timetexter
 
+import android.icu.text.SimpleDateFormat
+import android.os.Build
 import android.os.Bundle
+import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastMap
@@ -37,9 +39,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
+import androidx.work.*
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.programmersbox.timetexter.ui.theme.TimeTexterTheme
 import com.programmersbox.timetexter.ui.theme.currentColorScheme
@@ -116,6 +116,9 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
         },
         floatingActionButtonPosition = FabPosition.End
     ) { p ->
+
+        val context = LocalContext.current
+
         AnimatedLazyColumn(
             contentPadding = p,
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -124,23 +127,26 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
                 AnimatedLazyListItem(key = item.id, value = item) {
                     TimeTextItem(
                         item = item,
-                        delete = { scope.launch { dao.removeItem(item) } },
+                        delete = {
+                            scope.launch { dao.removeItem(item) }
+                            workManager.cancelUniqueWork(item.id)
+                        },
                         checked = {
                             item.isActive = it
                             scope.launch { println(dao.updateItem(item)) }
                             if (it) {
-
-                                /*workManager.enqueueUniquePeriodicWork(
-                                    item.id,
-                                    ExistingPeriodicWorkPolicy.KEEP,
-                                    PeriodicWorkRequestBuilder()
-                                )*/
-
+                                queueItem(context, item)
                             } else {
                                 workManager.cancelUniqueWork(item.id)
                             }
                         }
-                    )
+                    ) {
+                        workManager.enqueue(
+                            OneTimeWorkRequestBuilder<TextWorker>()
+                                .setInputData(workDataOf("id" to item.id))
+                                .build()
+                        )
+                    }
                 }
             }
         )
@@ -152,7 +158,8 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
 fun TimeTextItem(
     item: TextInfo,
     delete: () -> Unit = {},
-    checked: (Boolean) -> Unit = {}
+    checked: (Boolean) -> Unit = {},
+    onClick: () -> Unit = {}
 ) {
 
     var showPopup by remember { mutableStateOf(false) }
@@ -220,12 +227,31 @@ fun TimeTextItem(
 
         var isActive by remember { mutableStateOf(item.isActive) }
 
-        ElevatedCard {
+        ElevatedCard(modifier = Modifier.clickable { onClick() }) {
             ListItem(
                 text = { Text(text = item.id) },
-                secondaryText = { Text(item.text) },
+                secondaryText = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val context = LocalContext.current
+
+                        val is24Hour = remember { DateFormat.is24HourFormat(context) }
+
+                        /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            Text(SimpleDateFormat.getDateTimeInstance().format(item.time))
+                        }*/
+
+                        //Text(item.timeInfo.date)
+                        Text("${item.timeInfo.time}${if (is24Hour) "" else item.timeInfo.amPm}")
+                        Text("To ${item.numbers.size} number(s)")
+                        androidx.compose.material3.Divider()
+                        Text(item.text)
+                    }
+                },
                 overlineText = { Text(item.type.name) },
                 trailing = {
+                    //TODO: On click on the card, send the notification/text
+
+                    //TODO: Add an edit icon
                     Switch(
                         checked = isActive,
                         onCheckedChange = {
@@ -258,13 +284,13 @@ fun TimeTextItem(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true)
+//@Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
     MaterialTheme(darkColorScheme()) {
         Scaffold {
             LazyColumn(contentPadding = it) {
-                item {
+                /*item {
                     TimeTextItem(
                         TextInfo(
                             "asdf",
@@ -288,7 +314,7 @@ fun DefaultPreview() {
                             listOf("123-456-789")
                         )
                     )
-                }
+                }*/
             }
         }
     }

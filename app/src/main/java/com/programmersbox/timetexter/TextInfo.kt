@@ -5,6 +5,8 @@ import androidx.room.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
+import java.util.*
 
 @Entity(tableName = "TextInfo")
 data class TextInfo(
@@ -17,6 +19,8 @@ data class TextInfo(
     val type: TimeType,
     @ColumnInfo(name = "time")
     val time: Long,
+    @ColumnInfo(name = "timeInfo")
+    val timeInfo: TextTime,
     @ColumnInfo(name = "isActive")
     var isActive: Boolean,
     @ColumnInfo(name = "textTo")
@@ -26,6 +30,14 @@ data class TextInfo(
 enum class TimeType {
     DAILY, WEEKLY, MONTHLY, YEARLY
 }
+
+data class TextTime(
+    val type: TimeType,
+    val date: LocalDate,
+    val time: String,
+    val amPm: String?,
+    val weekDay: Int?
+)
 
 @Dao
 interface ItemDao {
@@ -40,7 +52,7 @@ interface ItemDao {
     fun getAll(): Flow<List<TextInfo>>
 
     @Query("select * from TextInfo where id == :id")
-    fun getItem(id: String): Flow<TextInfo?>
+    suspend fun getItem(id: String): TextInfo?
 
     @Update
     suspend fun updateItem(item: TextInfo): Int
@@ -71,12 +83,12 @@ abstract class ItemDatabase : RoomDatabase() {
 object Converters {
     @TypeConverter
     fun fromString(value: String?): List<String> {
-        return Gson().fromJson(value, object : TypeToken<List<String?>?>() {}.type)
+        return value?.fromJson<List<String>>().orEmpty()
     }
 
     @TypeConverter
     fun fromArrayList(list: List<String>?): String {
-        return Gson().toJson(list)
+        return list.toJson()
     }
 
     @TypeConverter
@@ -87,5 +99,15 @@ object Converters {
     @TypeConverter
     fun fromStringToTime(value: String): TimeType {
         return TimeType.valueOf(value)
+    }
+
+    @TypeConverter
+    fun fromTextTime(value: TextTime): String {
+        return value.toJson()
+    }
+
+    @TypeConverter
+    fun toTextTime(value: String): TextTime {
+        return value.fromJson<TextTime>()!!
     }
 }
