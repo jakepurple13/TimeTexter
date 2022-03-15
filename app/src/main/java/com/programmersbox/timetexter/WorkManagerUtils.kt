@@ -1,13 +1,19 @@
 package com.programmersbox.timetexter
 
+import android.app.Activity
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.icu.text.SimpleDateFormat
+import android.telephony.SmsManager
+import android.widget.Toast
 import androidx.compose.ui.util.fastMap
-import androidx.navigation.NavDeepLinkBuilder
 import androidx.work.*
-import kotlinx.coroutines.flow.singleOrNull
 import java.util.*
 import java.util.concurrent.TimeUnit
+
 
 fun queueItem(context: Context, item: TextInfo) {
 
@@ -56,15 +62,15 @@ fun queueItem(context: Context, item: TextInfo) {
     println(SimpleDateFormat.getDateTimeInstance().format(c.timeInMillis))
     println(c.timeInMillis -  System.currentTimeMillis())
 
-    manager.enqueueUniquePeriodicWork(
+    /*manager.enqueueUniquePeriodicWork(
         item.id,
         ExistingPeriodicWorkPolicy.KEEP,
         PeriodicWorkRequestBuilder<TextWorker>(time.first, time.second, flexTimeInterval = 5L, flexTimeIntervalUnit = TimeUnit.SECONDS)
-            //.setInitialDelay(c.timeInMillis -  System.currentTimeMillis(), TimeUnit.MILLISECONDS)
-            .setInitialDelay(5000, TimeUnit.MILLISECONDS)
+            .setInitialDelay(c.timeInMillis -  System.currentTimeMillis(), TimeUnit.MILLISECONDS)
+            //.setInitialDelay(5000, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf("id" to item.id))
             .build()
-    )
+    )*/
 
 }
 
@@ -81,7 +87,63 @@ class TextWorker(context: Context, workerParams: WorkerParameters) : CoroutineWo
 
         println(item)
 
+        item?.numbers?.forEach { applicationContext.sendSMS(it, item.text) }
+
         return Result.success()
     }
 
+}
+
+//sent sms
+fun Context.sendSMS(phoneNumber: String, message: String) {
+    val SENT = "SMS_SENT"
+    val DELIVERED = "SMS_DELIVERED"
+    val sentPI = PendingIntent.getBroadcast(this, 0, Intent(SENT), PendingIntent.FLAG_IMMUTABLE)
+    val deliveredPI = PendingIntent.getBroadcast(this, 0, Intent(DELIVERED), PendingIntent.FLAG_IMMUTABLE)
+
+    // ---when the SMS has been sent---
+    registerReceiver(object : BroadcastReceiver() {
+        override fun onReceive(arg0: Context, arg1: Intent?) {
+            when (resultCode) {
+                Activity.RESULT_OK -> Toast.makeText(
+                    arg0, "SMS sent",
+                    Toast.LENGTH_SHORT
+                ).show()
+                SmsManager.RESULT_ERROR_GENERIC_FAILURE -> Toast.makeText(
+                    arg0, "Generic failure",
+                    Toast.LENGTH_SHORT
+                ).show()
+                SmsManager.RESULT_ERROR_NO_SERVICE -> Toast.makeText(
+                    arg0, "No service",
+                    Toast.LENGTH_SHORT
+                ).show()
+                SmsManager.RESULT_ERROR_NULL_PDU -> Toast.makeText(
+                    arg0, "Null PDU",
+                    Toast.LENGTH_SHORT
+                ).show()
+                SmsManager.RESULT_ERROR_RADIO_OFF -> Toast.makeText(
+                    arg0, "Radio off",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }, IntentFilter(SENT))
+
+    // ---when the SMS has been delivered---
+    registerReceiver(object : BroadcastReceiver() {
+        override fun onReceive(arg0: Context, arg1: Intent?) {
+            when (resultCode) {
+                Activity.RESULT_OK -> Toast.makeText(
+                    arg0, "SMS delivered",
+                    Toast.LENGTH_SHORT
+                ).show()
+                Activity.RESULT_CANCELED -> Toast.makeText(
+                    arg0, "SMS not delivered",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }, IntentFilter(DELIVERED))
+    val sms: SmsManager = SmsManager.getDefault()
+    sms.sendTextMessage(phoneNumber, null, message, sentPI, deliveredPI)
 }

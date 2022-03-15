@@ -2,11 +2,13 @@ package com.programmersbox.timetexter
 
 import android.Manifest
 import android.R.attr.data
+import android.content.Intent
 import android.database.Cursor
 import android.icu.text.SimpleDateFormat
 import android.net.Uri
 import android.os.Build
 import android.provider.ContactsContract
+import android.provider.Settings
 import android.text.format.DateFormat
 import android.util.Log
 import android.widget.Toast
@@ -47,6 +49,8 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.google.accompanist.permissions.PermissionsRequired
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.material.composethemeadapter.MdcTheme
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
@@ -305,21 +309,39 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
 
             Divider()
 
-            PermissionRequest(
-                permissionsList = listOf(Manifest.permission.READ_CONTACTS),
-                denied = {
+            val storagePermissions = rememberMultiplePermissionsState(listOf(Manifest.permission.READ_CONTACTS))
+            LaunchedEffect(Unit) { storagePermissions.launchMultiplePermissionRequest() }
+            PermissionsRequired(
+                multiplePermissionsState = storagePermissions,
+                permissionsNotGrantedContent = {
                     PreferenceSetting(
                         settingTitle = { Text("Contacts to Text") },
-                        summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) }
+                        summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) },
+                        modifier = Modifier.clickable { storagePermissions.launchMultiplePermissionRequest() }
+                    )
+                },
+                permissionsNotAvailableContent = {
+                    PreferenceSetting(
+                        settingTitle = { Text("Contacts to Text") },
+                        summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) },
+                        modifier = Modifier.clickable {
+                            context.startActivity(
+                                Intent().apply {
+                                    action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                                    data = Uri.fromParts("package", context.packageName, null)
+                                }
+                            )
+                        }
+                    )
+                },
+                content = {
+                    PreferenceSetting(
+                        settingTitle = { Text("Contacts to Text") },
+                        summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) },
+                        modifier = Modifier.clickable { contactIntent.launch() }
                     )
                 }
-            ) {
-                PreferenceSetting(
-                    settingTitle = { Text("Contacts to Text") },
-                    summaryValue = { Text(numberList.joinToString(", ") { "${it.first} = ${it.second}" }) },
-                    modifier = Modifier.clickable { contactIntent.launch() }
-                )
-            }
+            )
 
             var customNumber by remember { mutableStateOf("") }
 

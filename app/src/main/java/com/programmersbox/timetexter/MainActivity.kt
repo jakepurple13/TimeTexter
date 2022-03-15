@@ -1,11 +1,16 @@
 package com.programmersbox.timetexter
 
+import android.Manifest
+import android.content.Intent
 import android.icu.text.SimpleDateFormat
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.launch
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -40,6 +45,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.work.*
+import com.google.accompanist.permissions.PermissionsRequired
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.programmersbox.timetexter.ui.theme.TimeTexterTheme
 import com.programmersbox.timetexter.ui.theme.currentColorScheme
@@ -76,7 +83,7 @@ sealed class Screen(val route: String) {
     object AddItem : Screen("addItem")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, com.google.accompanist.permissions.ExperimentalPermissionsApi::class)
 @Composable
 fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavController) {
     val items by dao.getAll().collectAsState(initial = emptyList())
@@ -84,6 +91,8 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
     val scope = rememberCoroutineScope()
 
     val scrollBehavior = remember { TopAppBarDefaults.pinnedScrollBehavior() }
+
+    val context = LocalContext.current
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -97,57 +106,63 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
         floatingActionButton = {
             SmallFloatingActionButton(
                 containerColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                onClick = {
-                    /*TODO*/
-                    navController.navigate(Screen.AddItem.route)
-                    /*scope.launch {
-                        dao.newItem(
-                            TextInfo(
-                                "asdf${items.size}",
-                                "asdf",
-                                "asdf",
-                                123L,
-                                false
-                            )
-                        )
-                    }*/
-                }
+                onClick = { navController.navigate(Screen.AddItem.route) }
             ) { Icon(Icons.Default.Add, contentDescription = null) }
         },
         floatingActionButtonPosition = FabPosition.End
     ) { p ->
 
-        val context = LocalContext.current
+        val storagePermissions = rememberMultiplePermissionsState(listOf(Manifest.permission.SEND_SMS))
 
-        AnimatedLazyColumn(
-            contentPadding = p,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(horizontal = 4.dp),
-            items = items.fastMap { item ->
-                AnimatedLazyListItem(key = item.id, value = item) {
-                    TimeTextItem(
-                        item = item,
-                        delete = {
-                            scope.launch { dao.removeItem(item) }
-                            workManager.cancelUniqueWork(item.id)
-                        },
-                        checked = {
-                            item.isActive = it
-                            scope.launch { println(dao.updateItem(item)) }
-                            if (it) {
-                                queueItem(context, item)
-                            } else {
-                                workManager.cancelUniqueWork(item.id)
+        LaunchedEffect(Unit) { storagePermissions.launchMultiplePermissionRequest() }
+
+        PermissionsRequired(
+            multiplePermissionsState = storagePermissions,
+            permissionsNotGrantedContent = {
+                NeedsPermissions { storagePermissions.launchMultiplePermissionRequest() }
+            },
+            permissionsNotAvailableContent = {
+                NeedsPermissions {
+                    context.startActivity(
+                        Intent().apply {
+                            action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+                    )
+                }
+            },
+            content = {
+                AnimatedLazyColumn(
+                    contentPadding = p,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    items = items.fastMap { item ->
+                        AnimatedLazyListItem(key = item.id, value = item) {
+                            TimeTextItem(
+                                item = item,
+                                delete = {
+                                    scope.launch { dao.removeItem(item) }
+                                    workManager.cancelUniqueWork(item.id)
+                                },
+                                checked = {
+                                    item.isActive = it
+                                    scope.launch { println(dao.updateItem(item)) }
+                                    if (it) {
+                                        queueItem(context, item)
+                                    } else {
+                                        workManager.cancelUniqueWork(item.id)
+                                    }
+                                }
+                            ) {
+                                workManager.enqueue(
+                                    OneTimeWorkRequestBuilder<TextWorker>()
+                                        .setInputData(workDataOf("id" to item.id))
+                                        .build()
+                                )
                             }
                         }
-                    ) {
-                        workManager.enqueue(
-                            OneTimeWorkRequestBuilder<TextWorker>()
-                                .setInputData(workDataOf("id" to item.id))
-                                .build()
-                        )
                     }
-                }
+                )
             }
         )
     }
@@ -249,8 +264,6 @@ fun TimeTextItem(
                 },
                 overlineText = { Text(item.type.name) },
                 trailing = {
-                    //TODO: On click on the card, send the notification/text
-
                     //TODO: Add an edit icon
                     Switch(
                         checked = isActive,
