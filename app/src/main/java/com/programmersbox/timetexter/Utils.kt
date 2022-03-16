@@ -1,8 +1,12 @@
 package com.programmersbox.timetexter
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.provider.Settings
+import android.text.format.DateFormat
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,10 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -35,6 +36,8 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
+import java.text.SimpleDateFormat
+import java.util.*
 
 @ExperimentalMaterial3Api
 @ExperimentalComposeUiApi
@@ -283,3 +286,34 @@ inline fun <reified T> String?.fromJson(): T? = try {
 } catch (e: Exception) {
     null
 }
+
+@Composable
+fun currentTime(): State<Long> {
+    return broadcastReceiver(
+        defaultValue = System.currentTimeMillis(),
+        intentFilter = IntentFilter(Intent.ACTION_TIME_TICK),
+        tick = { _, _ -> System.currentTimeMillis() }
+    )
+}
+
+@Composable
+fun <T : Any> broadcastReceiver(defaultValue: T, intentFilter: IntentFilter, tick: (context: Context, intent: Intent) -> T): State<T> {
+    val item: MutableState<T> = remember { mutableStateOf(defaultValue) }
+    val context = LocalContext.current
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                item.value = tick(context, intent)
+            }
+        }
+        context.registerReceiver(receiver, intentFilter)
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+    return item
+}
+
+fun Context.getSystemDateTimeFormat() = SimpleDateFormat(
+    "${(DateFormat.getDateFormat(this) as SimpleDateFormat).toLocalizedPattern()} ${(DateFormat.getTimeFormat(this) as SimpleDateFormat).toLocalizedPattern()}",
+    Locale.getDefault()
+)

@@ -80,7 +80,10 @@ sealed class Screen(val route: String) {
     object AddItem : Screen("addItem")
 }
 
-@OptIn(ExperimentalMaterial3Api::class, com.google.accompanist.permissions.ExperimentalPermissionsApi::class)
+@OptIn(
+    ExperimentalMaterial3Api::class, com.google.accompanist.permissions.ExperimentalPermissionsApi::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class
+)
 @Composable
 fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavController) {
     val items by dao.getAll().collectAsState(initial = emptyList())
@@ -96,7 +99,16 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
         topBar = {
             SmallTopAppBar(
                 title = { Text("Time Texter") },
-                actions = { Text("${items.size} texts") },
+                actions = {
+                    val time by currentTime()
+                    Text(
+                        context.getSystemDateTimeFormat().format(time),
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+
+                    Text("${items.size} texts")
+
+                },
                 scrollBehavior = scrollBehavior
             )
         },
