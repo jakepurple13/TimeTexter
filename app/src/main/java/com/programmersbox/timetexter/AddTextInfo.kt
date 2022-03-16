@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastMap
 import androidx.navigation.NavController
-import androidx.work.WorkManager
 import com.google.accompanist.permissions.PermissionsRequired
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.material.composethemeadapter.MdcTheme
@@ -51,11 +50,12 @@ data class ContactInfo(
     val numbers: List<String>
 )
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.material.ExperimentalMaterialApi::class,
+@OptIn(
+    ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class, androidx.compose.material.ExperimentalMaterialApi::class,
     com.google.accompanist.permissions.ExperimentalPermissionsApi::class
 )
 @Composable
-fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavController) {
+fun AddNewItem(dao: ItemDao, navController: NavController) {
 
     val context = LocalContext.current
 

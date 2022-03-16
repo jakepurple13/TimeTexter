@@ -70,4 +70,6 @@ dependencies {
     implementation "androidx.work:work-runtime-ktx:$work_version"
     // optional - RxJava2 support
     implementation "androidx.work:work-rxjava2:$work_version"
+
+    implementation 'com.google.android.gms:play-services-ads:20.6.0'
 }

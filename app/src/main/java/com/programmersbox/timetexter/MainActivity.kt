@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,6 +44,10 @@ import androidx.work.workDataOf
 import com.google.accompanist.permissions.PermissionsRequired
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.MobileAds
 import com.programmersbox.timetexter.ui.theme.currentColorScheme
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -58,6 +63,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MobileAds.initialize(this) {}
         setContent {
             MaterialTheme(currentColorScheme) {
                 val systemController = rememberSystemUiController()
@@ -68,12 +74,16 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(navController = navController, startDestination = Screen.Main.route) {
                     composable(Screen.Main.route) { MainView(dao = dao, workManager = workManager, navController = navController) }
-                    composable(Screen.AddItem.route) { AddNewItem(dao = dao, workManager = workManager, navController = navController) }
+                    composable(Screen.AddItem.route) { AddNewItem(dao = dao, navController = navController) }
                 }
             }
         }
     }
 }
+
+const val adID = "ca-app-pub-4987825622505192/9252747877"
+
+private val ad by lazy { AdRequest.Builder().build() }
 
 sealed class Screen(val route: String) {
     object Main : Screen("mainScreen")
@@ -118,7 +128,21 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
                 onClick = { navController.navigate(Screen.AddItem.route) }
             ) { Icon(Icons.Default.Add, contentDescription = null) }
         },
-        floatingActionButtonPosition = FabPosition.End
+        floatingActionButtonPosition = FabPosition.End,
+        bottomBar = {
+            BottomAppBar {
+                AndroidView(
+                    modifier = Modifier.fillMaxWidth(),
+                    factory = {
+                        AdView(it).apply {
+                            adSize = AdSize.BANNER
+                            adUnitId = adID
+                            loadAd(ad)
+                        }
+                    }
+                )
+            }
+        }
     ) { p ->
 
         val storagePermissions = rememberMultiplePermissionsState(listOf(Manifest.permission.SEND_SMS))
