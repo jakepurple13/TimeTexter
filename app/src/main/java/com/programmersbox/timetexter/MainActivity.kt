@@ -2,32 +2,25 @@ package com.programmersbox.timetexter
 
 import android.Manifest
 import android.content.Intent
-import android.icu.text.SimpleDateFormat
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.launch
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,20 +30,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastMap
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.work.*
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.google.accompanist.permissions.PermissionsRequired
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
-import com.programmersbox.timetexter.ui.theme.TimeTexterTheme
 import com.programmersbox.timetexter.ui.theme.currentColorScheme
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.*
 
 class MainActivity : ComponentActivity() {
 
@@ -154,6 +151,7 @@ fun MainView(dao: ItemDao, workManager: WorkManager, navController: NavControlle
                                     }
                                 }
                             ) {
+                                //TODO: Add in a "Are you sure you want to send a text" dialog
                                 workManager.enqueue(
                                     OneTimeWorkRequestBuilder<TextWorker>()
                                         .setInputData(workDataOf("id" to item.id))
@@ -243,20 +241,26 @@ fun TimeTextItem(
         var isActive by remember { mutableStateOf(item.isActive) }
 
         ElevatedCard(modifier = Modifier.clickable { onClick() }) {
-            ListItem(
-                text = { Text(text = item.id) },
+            CustomListItem(
+                text = { Text(text = "ID: ${item.id}") },
                 secondaryText = {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         val context = LocalContext.current
 
                         val is24Hour = remember { DateFormat.is24HourFormat(context) }
 
-                        /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                            Text(SimpleDateFormat.getDateTimeInstance().format(item.time))
-                        }*/
+                        val days = stringArrayResource(id = R.array.days)
 
-                        //Text(item.timeInfo.date)
-                        Text("${item.timeInfo.time}${if (is24Hour) "" else item.timeInfo.amPm}")
+                        when (item.timeInfo.type) {
+                            TimeType.WEEKLY -> Text("On ${item.timeInfo.weekDay?.let { days[it] }}")
+                            TimeType.MONTHLY -> Text("On ${LocalDate.parse(item.timeInfo.date).dayOfMonth}")
+                            TimeType.YEARLY -> {
+                                val day = LocalDate.parse(item.timeInfo.date)
+                                    .let { "${it.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${it.dayOfMonth}" }
+                                Text("On $day")
+                            }
+                        }
+                        Text("At: ${item.timeInfo.time}${if (is24Hour) "" else item.timeInfo.amPm}")
                         Text("To ${item.numbers.size} number(s)")
                         androidx.compose.material3.Divider()
                         Text(item.text)

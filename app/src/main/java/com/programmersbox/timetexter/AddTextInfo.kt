@@ -1,17 +1,12 @@
 package com.programmersbox.timetexter
 
 import android.Manifest
-import android.R.attr.data
 import android.content.Intent
 import android.database.Cursor
-import android.icu.text.SimpleDateFormat
 import android.net.Uri
-import android.os.Build
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.text.format.DateFormat
-import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
@@ -37,27 +32,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastMap
-import androidx.compose.ui.window.DialogProperties
-import androidx.core.database.getStringOrNull
-import androidx.fragment.app.FragmentManager
 import androidx.navigation.NavController
-import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.accompanist.permissions.PermissionsRequired
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.material.composethemeadapter.MdcTheme
-import com.google.android.material.timepicker.MaterialTimePicker
-import com.google.android.material.timepicker.TimeFormat
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 data class ContactInfo(
     val name: String,
@@ -227,9 +214,9 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
                                 time = 0L,
                                 timeInfo = TextTime(
                                     type = type,
-                                    date = datePickerState.initialDate,
-                                    time = "${timeHours.hours}:${timeHours.minutes}",
-                                    amPm = if(is24Hour) null else (timeHours as? AMPMHours)?.dayTime?.name,
+                                    date = datePickerState.initialDate.toString(),
+                                    time = "${timeHours.hours}:${if (timeHours.minutes < 10) "0${timeHours.minutes}" else timeHours.minutes}",
+                                    amPm = if (is24Hour) null else (timeHours as? AMPMHours)?.dayTime?.name,
                                     weekDay = weekDay
                                 ),
                                 true,
@@ -397,9 +384,11 @@ fun AddNewItem(dao: ItemDao, workManager: WorkManager, navController: NavControl
             when (type) {
                 TimeType.WEEKLY -> {
 
+                    val days = stringArrayResource(id = R.array.days)
+
                     PreferenceSetting(
                         settingTitle = { Text("Selected") },
-                        summaryValue = { Text("$weekDay") }
+                        summaryValue = { Text(weekDay?.let { days[it] }.orEmpty()) }
                     )
 
                     Row(

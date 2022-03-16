@@ -11,6 +11,7 @@ import android.telephony.SmsManager
 import android.widget.Toast
 import androidx.compose.ui.util.fastMap
 import androidx.work.*
+import java.time.LocalDate
 import java.util.*
 import java.util.concurrent.TimeUnit
 
@@ -26,7 +27,7 @@ fun queueItem(context: Context, item: TextInfo) {
     //that's the initial delay
 
     val time = when(item.timeInfo.type) {
-        TimeType.DAILY -> 1L to TimeUnit.MINUTES//TimeUnit.DAYS
+        TimeType.DAILY -> 1L to TimeUnit.DAYS
         TimeType.WEEKLY -> 7L to TimeUnit.DAYS
         TimeType.MONTHLY -> 30L to TimeUnit.DAYS
         TimeType.YEARLY -> 365L to TimeUnit.DAYS
@@ -47,30 +48,31 @@ fun queueItem(context: Context, item: TextInfo) {
     c[Calendar.HOUR] = t.first()
     c[Calendar.MINUTE] = t.last()
 
+
     when(item.timeInfo.type) {
         TimeType.WEEKLY -> {
             c[Calendar.DAY_OF_WEEK] = item.timeInfo.weekDay ?: 0
         }
         TimeType.MONTHLY -> {
-            c[Calendar.DAY_OF_MONTH] = item.timeInfo.date.dayOfMonth
+            c[Calendar.DAY_OF_MONTH] = LocalDate.parse(item.timeInfo.date).dayOfMonth
         }
         TimeType.YEARLY -> {
-            c[Calendar.DAY_OF_YEAR] = item.timeInfo.date.dayOfYear
+            c[Calendar.DAY_OF_YEAR] = LocalDate.parse(item.timeInfo.date).dayOfYear
         }
     }
 
     println(SimpleDateFormat.getDateTimeInstance().format(c.timeInMillis))
     println(c.timeInMillis -  System.currentTimeMillis())
 
-    /*manager.enqueueUniquePeriodicWork(
+    manager.enqueueUniquePeriodicWork(
         item.id,
         ExistingPeriodicWorkPolicy.KEEP,
-        PeriodicWorkRequestBuilder<TextWorker>(time.first, time.second, flexTimeInterval = 5L, flexTimeIntervalUnit = TimeUnit.SECONDS)
-            .setInitialDelay(c.timeInMillis -  System.currentTimeMillis(), TimeUnit.MILLISECONDS)
+        PeriodicWorkRequestBuilder<TextWorker>(time.first, time.second)
+            .setInitialDelay(c.timeInMillis - System.currentTimeMillis(), TimeUnit.MILLISECONDS)
             //.setInitialDelay(5000, TimeUnit.MILLISECONDS)
             .setInputData(workDataOf("id" to item.id))
             .build()
-    )*/
+    )
 
 }
 

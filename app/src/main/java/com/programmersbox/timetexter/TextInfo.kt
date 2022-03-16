@@ -2,11 +2,8 @@ package com.programmersbox.timetexter
 
 import android.content.Context
 import androidx.room.*
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
-import java.util.*
 
 @Entity(tableName = "TextInfo")
 data class TextInfo(
@@ -33,7 +30,7 @@ enum class TimeType {
 
 data class TextTime(
     val type: TimeType,
-    val date: LocalDate,
+    val date: String,
     val time: String,
     val amPm: String?,
     val weekDay: Int?
@@ -109,5 +106,15 @@ object Converters {
     @TypeConverter
     fun toTextTime(value: String): TextTime {
         return value.fromJson<TextTime>()!!
+    }
+
+    @TypeConverter
+    fun fromLocalDate(value: LocalDate): String {
+        return value.toString()
+    }
+
+    @TypeConverter
+    fun toLocalDate(value: String): LocalDate {
+        return LocalDate.parse(value)
     }
 }
